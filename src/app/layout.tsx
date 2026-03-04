@@ -20,7 +20,19 @@ const bungee = Bungee({
 
 export const metadata: Metadata = {
   title: "Pointaloc",
-  description: "Pointaloc",
+  description: "Point in the direction of cities around the world",
+  metadataBase: new URL("https://pointaloc.com"),
+  openGraph: {
+    title: "Pointaloc",
+    description: "Point in the direction of cities around the world",
+    siteName: "Pointaloc",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pointaloc",
+    description: "Point in the direction of cities around the world",
+  },
 };
 
 export const viewport: Viewport = {

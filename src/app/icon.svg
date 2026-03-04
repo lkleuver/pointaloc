@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#93c5fd"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Compass ring -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="url(#ring)" stroke-width="16" opacity="0.3"/>
+  <!-- Cardinal tick marks -->
+  <line x1="256" y1="50" x2="256" y2="82" stroke="#60a5fa" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <line x1="256" y1="430" x2="256" y2="462" stroke="#60a5fa" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <line x1="50" y1="256" x2="82" y2="256" stroke="#60a5fa" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <line x1="430" y1="256" x2="462" y2="256" stroke="#60a5fa" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <!-- Arrow pointing up-right (NE) — dynamic/game feel -->
+  <g transform="translate(256,256) rotate(-45)">
+    <!-- Shaft -->
+    <rect x="-18" y="-120" width="36" height="160" rx="8" fill="url(#arrow)"/>
+    <!-- Arrowhead -->
+    <polygon points="0,-210 -55,-110 0,-140 55,-110" fill="#60a5fa"/>
+    <!-- Tail notch -->
+    <polygon points="-30,40 0,20 30,40 0,70" fill="#2563eb" opacity="0.6"/>
+  </g>
+  <!-- Center dot -->
+  <circle cx="256" cy="256" r="12" fill="#f8fafc"/>
+</svg>
