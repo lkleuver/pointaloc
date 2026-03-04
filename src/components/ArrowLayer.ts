@@ -201,11 +201,6 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
 
       // Arrow
       arrowGroup = buildArrow();
-
-      const arrowHeight = 30;
-      const scale = modelScale * arrowHeight;
-      arrowGroup.scale.set(scale, scale, scale);
-
       scene.add(arrowGroup);
 
       renderer = new THREE.WebGLRenderer({
@@ -241,6 +236,15 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
         } else {
           map.triggerRepaint();
         }
+      }
+
+      // Scale arrow relative to zoom so it's always a consistent visual size
+      if (arrowGroup) {
+        const zoom = map.getZoom();
+        // At zoom 16 the arrow should be ~30m; halve/double for each zoom step
+        const metersAtZoom = 30 * Math.pow(2, 16 - zoom);
+        const scale = modelScale * metersAtZoom;
+        arrowGroup.scale.set(scale, scale, scale);
       }
 
       const mvpMatrix = new THREE.Matrix4()
