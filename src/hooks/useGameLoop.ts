@@ -73,7 +73,8 @@ export function useGameLoop({ mode, map, setupResult }: UseGameLoopParams): UseG
 
     map.easeTo({
       pitch: 60,
-      bearing: map.getBearing(),
+      bearing: setupResult.bearing,
+      zoom: 14,
       duration: 1000,
     });
 
