@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Bungee, Press_Start_2P } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -59,6 +60,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} ${pressStart.variable} antialiased`}
       >
         {children}
+        <Script
+          data-goatcounter="https://l3s.goatcounter.com/count"
+          src="//gc.zgo.at/count.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
