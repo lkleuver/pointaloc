@@ -22,6 +22,17 @@ const NEXT_COUNTDOWN_START = 5;
 const COUNTDOWN_INTERVAL_MS = 1000;
 const ARROW_LAYER_ID = 'three-arrow-layer';
 
+/** Haversine distance between two lat/lng points in kilometers. */
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /** Fisher-Yates shuffle, returns a new array. */
 function shuffleLocations(): Location[] {
   const arr = [...locations];
@@ -43,6 +54,7 @@ interface UseGameLoopResult {
   readonly countdown: number | null;
   readonly gamePhase: GamePhase;
   readonly nextCountdown: number | null;
+  readonly distance: number | null;
 }
 
 export function useGameLoop({ mode, map, setupResult }: UseGameLoopParams): UseGameLoopResult {
@@ -50,6 +62,7 @@ export function useGameLoop({ mode, map, setupResult }: UseGameLoopParams): UseG
   const [countdown, setCountdown] = useState<number | null>(null);
   const [gamePhase, setGamePhase] = useState<GamePhase>('guessing');
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
   const arrowLayerRef = useRef<ArrowLayer | null>(null);
   const locationQueueRef = useRef<Location[]>([]);
   const locationIndexRef = useRef(0);
@@ -131,6 +144,10 @@ export function useGameLoop({ mode, map, setupResult }: UseGameLoopParams): UseG
     );
 
     arrowLayerRef.current?.reveal(targetBearing);
+    setDistance(Math.round(haversineDistance(
+      setupResult.lat, setupResult.lng,
+      targetLocation.lat, targetLocation.lng,
+    )));
     setGamePhase('revealing');
     setNextCountdown(NEXT_COUNTDOWN_START);
   }, [gamePhase, countdown, setupResult, targetLocation]);
@@ -151,6 +168,7 @@ export function useGameLoop({ mode, map, setupResult }: UseGameLoopParams): UseG
     if (gamePhase !== 'revealing' || nextCountdown !== 0) return;
 
     arrowLayerRef.current?.hide();
+    setDistance(null);
 
     // Advance to next location, reshuffle when exhausted
     let nextIndex = locationIndexRef.current + 1;
@@ -165,5 +183,5 @@ export function useGameLoop({ mode, map, setupResult }: UseGameLoopParams): UseG
     setNextCountdown(null);
   }, [gamePhase, nextCountdown]);
 
-  return { targetLocation, countdown, gamePhase, nextCountdown };
+  return { targetLocation, countdown, gamePhase, nextCountdown, distance };
 }

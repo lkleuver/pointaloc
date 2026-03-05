@@ -91,8 +91,8 @@ export default function MonitorIndicator({ onRotationChange }: MonitorIndicatorP
           <svg width="140" height="80" viewBox="0 0 140 80" className="overflow-visible">
             <defs>
               <linearGradient id="ray-grad" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
+                <stop offset="0%" stopColor="#f87171" stopOpacity="0.35" />
+                <stop offset="100%" stopColor="#f87171" stopOpacity="0" />
               </linearGradient>
             </defs>
             {/* Central ray */}
@@ -137,7 +137,7 @@ export default function MonitorIndicator({ onRotationChange }: MonitorIndicatorP
             filter="url(#screen-glow)" />
           {/* Screen glow line on the front edge */}
           <line x1="15" y1="39" x2="95" y2="39"
-            stroke="#bfdbfe" strokeWidth="1" opacity="0.5" />
+            stroke="#fca5a5" strokeWidth="1" opacity="0.5" />
 
           {/* Arrow: direction the screen faces (pointing up = forward) */}
           <polygon points="55,10 47,30 63,30"

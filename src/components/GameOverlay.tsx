@@ -5,6 +5,7 @@ interface GameOverlayProps {
   readonly countdown: number | null;
   readonly phase: GamePhase;
   readonly nextCountdown: number | null;
+  readonly distance: number | null;
   readonly visible: boolean;
 }
 
@@ -13,6 +14,7 @@ export default function GameOverlay({
   countdown,
   phase,
   nextCountdown,
+  distance,
   visible,
 }: GameOverlayProps) {
   if (!visible) return null;
@@ -42,6 +44,16 @@ export default function GameOverlay({
         >
           {countdown}
         </span>
+      )}
+
+      {/* Revealing phase: animated distance */}
+      {phase === 'revealing' && distance !== null && (
+        <p
+          className="mt-4 animate-fade-slide-up text-3xl text-white/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] sm:text-4xl"
+          style={{ fontFamily: 'var(--font-game)' }}
+        >
+          {distance.toLocaleString()} km
+        </p>
       )}
 
       {/* Revealing phase: small "next location in..." message */}

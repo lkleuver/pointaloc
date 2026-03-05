@@ -69,7 +69,7 @@ export default function Map() {
 
   const { relocate } = useGeolocation(map);
 
-  const { targetLocation, countdown, gamePhase, nextCountdown } = useGameLoop({
+  const { targetLocation, countdown, gamePhase, nextCountdown, distance } = useGameLoop({
     mode,
     map,
     setupResult,
@@ -95,6 +95,7 @@ export default function Map() {
           countdown={countdown}
           phase={gamePhase}
           nextCountdown={nextCountdown}
+          distance={distance}
           visible
         />
       )}
