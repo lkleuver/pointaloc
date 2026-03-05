@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm create:*)",
+      "Bash(rm:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm build:*)",
+      "WebSearch",
+      "Bash(pnpm add:*)",
+      "WebFetch(domain:maplibre.org)",
+      "WebFetch(domain:github.com)",
+      "Bash(git:*)",
+      "Bash(gh api:*)",
+      "Bash(pnpm:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:openfreemap.org)",
+      "WebFetch(domain:medium.com)"
+    ]
+  }
+}

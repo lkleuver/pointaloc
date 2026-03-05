@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+
 import maplibregl from 'maplibre-gl';
 
 interface ArrowLayerOptions {
@@ -47,8 +48,13 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
   let scene: THREE.Scene | null = null;
   let camera: THREE.Camera | null = null;
   let map: maplibregl.Map | null = null;
-  let arrowGroup: THREE.Group | null = null;
-  let arrowMaterials: THREE.MeshStandardMaterial[] = [];
+  let arrowMesh: THREE.Mesh | null = null;
+  let arrowMaterial: THREE.MeshPhysicalMaterial | null = null;
+  let envMap: THREE.Texture | null = null;
+  let keyLight: THREE.DirectionalLight | null = null;
+  let fillLight: THREE.DirectionalLight | null = null;
+  let rimLight: THREE.DirectionalLight | null = null;
+  let groundMesh: THREE.Mesh | null = null;
 
   // Animation state
   let animating = false;
@@ -61,45 +67,90 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
   const modelOrigin = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], HOVER_ALTITUDE_METERS);
   const modelScale = modelOrigin.meterInMercatorCoordinateUnits();
 
-  function buildArrow(): THREE.Group {
-    const group = new THREE.Group();
+  /** Generate a procedural environment map for realistic reflections. */
+  function buildEnvMap(rendererInstance: THREE.WebGLRenderer): THREE.Texture {
+    const pmrem = new THREE.PMREMGenerator(rendererInstance);
+    pmrem.compileCubemapShader();
 
-    const blue = new THREE.MeshStandardMaterial({
-      color: 0x60a5fa,
-      roughness: 0.3,
-      metalness: 0.4,
-      transparent: true,
-      opacity: 0,
-    });
-    const darkBlue = new THREE.MeshStandardMaterial({
-      color: 0x3b82f6,
+    const envScene = new THREE.Scene();
+
+    // Sky-blue gradient hemisphere
+    const skyColor = new THREE.Color(0x88ccff);
+    const groundColor = new THREE.Color(0xddeeff);
+    envScene.add(new THREE.HemisphereLight(skyColor, groundColor, 1.0));
+
+    // Bright sun-like source for specular highlights
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    sunLight.position.set(5, 10, 7);
+    envScene.add(sunLight);
+
+    // Warm bounce
+    const bounceLight = new THREE.DirectionalLight(0xffeedd, 0.5);
+    bounceLight.position.set(-3, 2, -5);
+    envScene.add(bounceLight);
+
+    const envTexture = pmrem.fromScene(envScene, 0.04).texture;
+    pmrem.dispose();
+
+    return envTexture;
+  }
+
+  function buildArrow(): THREE.Mesh {
+    // Single continuous profile revolved around Y — no internal faces
+    // Profile: bottom cap center → shaft wall → cone base → tip
+    const SHAFT_R = 0.8;
+    const CONE_R = 2;
+    const SHAFT_H = 10;
+    const TOTAL_H = 15;
+    const SEGMENTS = 32;
+
+    const profile = [
+      new THREE.Vector2(0, 0),          // bottom center
+      new THREE.Vector2(SHAFT_R, 0),    // bottom edge
+      new THREE.Vector2(SHAFT_R, SHAFT_H), // shaft top
+      new THREE.Vector2(CONE_R, SHAFT_H),  // cone base
+      new THREE.Vector2(0, TOTAL_H),    // cone tip
+    ];
+
+    const geo = new THREE.LatheGeometry(profile, SEGMENTS);
+    geo.computeVertexNormals();
+
+    // Apply vertex colors — shaft vertices get darker color, cone gets brighter
+    const posAttr = geo.getAttribute('position');
+    const totalVerts = posAttr.count;
+    const colors = new Float32Array(totalVerts * 3);
+    const shaftColor = new THREE.Color(0xcc0000);
+    const coneColor = new THREE.Color(0xff3333);
+
+    for (let i = 0; i < totalVerts; i++) {
+      const y = posAttr.getY(i);
+      const c = y <= SHAFT_H ? shaftColor : coneColor;
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    arrowMaterial = new THREE.MeshPhysicalMaterial({
+      vertexColors: true,
       roughness: 0.25,
-      metalness: 0.5,
-      transparent: true,
-      opacity: 0,
+      metalness: 0.3,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.15,
+      reflectivity: 0.9,
+      transparent: false,
+      depthWrite: true,
+      opacity: 1,
+      envMapIntensity: 1.5,
+      side: THREE.DoubleSide,
     });
-    arrowMaterials = [blue, darkBlue];
 
-    // Shaft — cylinder
-    const shaftGeom = new THREE.CylinderGeometry(0.5, 0.5, 12, 24);
-    const shaft = new THREE.Mesh(shaftGeom, darkBlue);
-    shaft.castShadow = true;
-    shaft.receiveShadow = true;
-    shaft.position.y = 6;
-    group.add(shaft);
+    const mesh = new THREE.Mesh(geo, arrowMaterial);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.visible = false;
 
-    // Cone tip
-    const coneGeom = new THREE.ConeGeometry(2, 6, 24);
-    const cone = new THREE.Mesh(coneGeom, blue);
-    cone.castShadow = true;
-    cone.receiveShadow = true;
-    cone.position.y = 15;
-    group.add(cone);
-
-    // Start hidden
-    group.visible = false;
-
-    return group;
+    return mesh;
   }
 
   /** Compute the flat-on-map quaternion for a given bearing. */
@@ -114,8 +165,8 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
   }
 
   function setOpacity(opacity: number) {
-    for (const mat of arrowMaterials) {
-      mat.opacity = opacity;
+    if (arrowMaterial) {
+      arrowMaterial.opacity = opacity;
     }
   }
 
@@ -130,7 +181,7 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
     renderingMode: '3d',
 
     reveal(targetBearing: number, durationMs?: number) {
-      if (!arrowGroup || !map) return;
+      if (!arrowMesh || !map) return;
 
       animDuration = durationMs ?? REVEAL_DURATION_MS;
       animStartTime = performance.now();
@@ -140,17 +191,17 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
       animStartQ = bearingQuaternion(randomStart);
       animEndQ = bearingQuaternion(targetBearing);
 
-      arrowGroup.quaternion.copy(animStartQ);
-      arrowGroup.visible = true;
-      setOpacity(0);
+      arrowMesh.quaternion.copy(animStartQ);
+      arrowMesh.visible = true;
+      setOpacity(1);
       animating = true;
       map.triggerRepaint();
     },
 
     hide() {
-      if (!arrowGroup) return;
+      if (!arrowMesh) return;
       animating = false;
-      arrowGroup.visible = false;
+      arrowMesh.visible = false;
       setOpacity(0);
       map?.triggerRepaint();
     },
@@ -162,46 +213,42 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
 
       scene = new THREE.Scene();
 
-      // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+      // Lighting — 3-point setup with hemisphere fill
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
       scene.add(ambientLight);
 
-      const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x444444, 0.5);
+      const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x666666, 1.0);
       scene.add(hemiLight);
 
-      const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      keyLight.position.set(30, 80, 60);
+      // Key light — main shadow caster (positions set dynamically in render)
+      keyLight = new THREE.DirectionalLight(0xfff5e6, 2.2);
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.width = 2048;
       keyLight.shadow.mapSize.height = 2048;
-      keyLight.shadow.camera.near = 0.1;
-      keyLight.shadow.camera.far = 500;
-      keyLight.shadow.camera.left = -100;
-      keyLight.shadow.camera.right = 100;
-      keyLight.shadow.camera.top = 100;
-      keyLight.shadow.camera.bottom = -100;
+      keyLight.shadow.bias = -0.001;
+      keyLight.shadow.normalBias = 0.02;
       scene.add(keyLight);
 
-      const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
-      fillLight.position.set(-40, 20, -30);
+      // Fill light — softer, opposite side (position set dynamically in render)
+      fillLight = new THREE.DirectionalLight(0xc4d8f0, 1.0);
       scene.add(fillLight);
 
-      const rimLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      rimLight.position.set(0, -40, 80);
+      // Rim / back light — edge highlights (position set dynamically in render)
+      rimLight = new THREE.DirectionalLight(0xffffff, 1.2);
       scene.add(rimLight);
 
-      // Ground plane for shadow
-      const groundGeom = new THREE.PlaneGeometry(200, 200);
-      const groundMat = new THREE.ShadowMaterial({ opacity: 0.35 });
-      const ground = new THREE.Mesh(groundGeom, groundMat);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.z = -HOVER_ALTITUDE_METERS * modelScale;
-      ground.receiveShadow = true;
-      scene.add(ground);
+      // Ground plane for shadow — PlaneGeometry lies in XY facing +Z, which is
+      // already the map surface in mercator space. No rotation needed.
+      const groundGeom = new THREE.PlaneGeometry(1, 1);
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.4, side: THREE.DoubleSide });
+      groundMesh = new THREE.Mesh(groundGeom, groundMat);
+      groundMesh.position.z = -HOVER_ALTITUDE_METERS * modelScale;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
 
       // Arrow
-      arrowGroup = buildArrow();
-      scene.add(arrowGroup);
+      arrowMesh = buildArrow();
+      scene.add(arrowMesh);
 
       renderer = new THREE.WebGLRenderer({
         canvas: map.getCanvas(),
@@ -211,40 +258,73 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
       renderer.autoClear = false;
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.8;
+
+      // Generate environment map and assign to material for reflections
+      envMap = buildEnvMap(renderer);
+      if (arrowMaterial) {
+        arrowMaterial.envMap = envMap;
+        arrowMaterial.needsUpdate = true;
+      }
     },
 
-    render(_gl: WebGLRenderingContext | WebGL2RenderingContext, args: CustomLayerRenderParams) {
+    render(gl: WebGLRenderingContext | WebGL2RenderingContext, args: CustomLayerRenderParams) {
       if (!renderer || !scene || !camera || !map) return;
 
+      // Clear MapLibre's depth buffer so the arrow renders on top of map tiles,
+      // while keeping depth testing enabled for correct ordering between arrow parts
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+
       // Animate reveal
-      if (animating && arrowGroup) {
+      if (animating && arrowMesh) {
         const elapsed = performance.now() - animStartTime;
         const rawT = Math.min(elapsed / animDuration, 1);
         const t = easeOutCubic(rawT);
 
-        // Fade in during first portion
-        const fadeT = Math.min(rawT / FADE_IN_PORTION, 1);
-        setOpacity(fadeT);
-
         // Slerp rotation
-        arrowGroup.quaternion.slerpQuaternions(animStartQ, animEndQ, t);
+        arrowMesh.quaternion.slerpQuaternions(animStartQ, animEndQ, t);
 
         if (rawT >= 1) {
           animating = false;
-          setOpacity(1);
-          arrowGroup.quaternion.copy(animEndQ);
+          arrowMesh.quaternion.copy(animEndQ);
         } else {
           map.triggerRepaint();
         }
       }
 
       // Scale arrow relative to zoom so it's always a consistent visual size
-      if (arrowGroup) {
+      if (arrowMesh) {
         const zoom = map.getZoom();
         // At zoom 16 the arrow should be ~30m; halve/double for each zoom step
         const metersAtZoom = 30 * Math.pow(2, 16 - zoom);
         const scale = modelScale * metersAtZoom;
-        arrowGroup.scale.set(scale, scale, scale);
+        arrowMesh.scale.set(scale, scale, scale);
+
+        // Scale lights, shadow camera, and ground plane to match arrow size
+        // ls = approximate arrow height in scene units
+        const ls = scale * 15;
+
+        if (keyLight) {
+          keyLight.position.set(1.5 * ls, 4 * ls, 3 * ls);
+          keyLight.shadow.camera.left = -3 * ls;
+          keyLight.shadow.camera.right = 3 * ls;
+          keyLight.shadow.camera.top = 3 * ls;
+          keyLight.shadow.camera.bottom = -3 * ls;
+          keyLight.shadow.camera.near = 0.01 * ls;
+          keyLight.shadow.camera.far = 20 * ls;
+          keyLight.shadow.camera.updateProjectionMatrix();
+        }
+        if (fillLight) {
+          fillLight.position.set(-2 * ls, 1.7 * ls, -1.3 * ls);
+        }
+        if (rimLight) {
+          rimLight.position.set(0, -2 * ls, 4 * ls);
+        }
+        if (groundMesh) {
+          const groundSize = scale * 150;
+          groundMesh.scale.set(groundSize, groundSize, 1);
+        }
       }
 
       const mvpMatrix = new THREE.Matrix4()
@@ -281,8 +361,16 @@ export function createArrowLayer(options: ArrowLayerOptions): ArrowLayer {
       }
       camera = null;
       map = null;
-      arrowGroup = null;
-      arrowMaterials = [];
+      arrowMesh = null;
+      arrowMaterial = null;
+      keyLight = null;
+      fillLight = null;
+      rimLight = null;
+      groundMesh = null;
+      if (envMap) {
+        envMap.dispose();
+        envMap = null;
+      }
     },
   };
 

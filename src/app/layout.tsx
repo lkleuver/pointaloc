@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Bungee } from "next/font/google";
+import { Geist, Geist_Mono, Bungee, Press_Start_2P } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,6 +14,12 @@ const geistMono = Geist_Mono({
 
 const bungee = Bungee({
   variable: "--font-game",
+  weight: "400",
+  subsets: ["latin"],
+});
+
+const pressStart = Press_Start_2P({
+  variable: "--font-pixel",
   weight: "400",
   subsets: ["latin"],
 });
@@ -50,7 +56,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} ${pressStart.variable} antialiased`}
       >
         {children}
       </body>
